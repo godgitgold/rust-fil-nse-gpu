@@ -10,8 +10,6 @@ use neptune::tree_builder::TreeBuilder;
 use ocl::builders::KernelBuilder;
 use ocl::{Buffer, Device, OclPrm, Platform, ProQue};
 
-const GPU_NVIDIA_PLATFORM_NAME: &str = "NVIDIA CUDA";
-
 /// Gets list of devices by platform name
 /// * `platform_name` - Platfrom name, e.g. "NVIDIA CUDA"
 fn get_devices(platform_name: &str) -> GPUResult<Vec<Device>> {
@@ -52,13 +50,17 @@ pub enum TreeOptions {
 }
 
 // Manages buffers
-struct GPUContext {
+pub struct GPUContext {
     pro_que: ProQue,
     tree_builder: Option<TreeBuilder<U8>>,
     config: Config,
 }
 
 impl GPUContext {
+    pub fn default(config: Config, tree_options: TreeOptions) -> NSEResult<GPUContext> {
+        GPUContext::new(utils::default_device()?, config, tree_options)
+    }
+
     pub fn new(device: Device, config: Config, tree_options: TreeOptions) -> NSEResult<GPUContext> {
         info!(
             "Initializing a new NSE GPU context on device: {}",
@@ -154,13 +156,7 @@ impl GPU {
 }
 
 impl NarrowStackedExpander for GPU {
-    fn new(config: Config, tree_options: TreeOptions) -> NSEResult<Self> {
-        // Choose first NVIDIA GPU
-        let device = *get_devices(GPU_NVIDIA_PLATFORM_NAME)?
-            .first()
-            .expect("GPU not found!");
-
-        let mut context = GPUContext::new(device, config, tree_options)?;
+    fn new(mut context: GPUContext, config: Config) -> NSEResult<Self> {
         let current_layer = context.create_buffer()?;
 
         Ok(GPU {
@@ -324,7 +320,8 @@ mod tests {
 
     #[test]
     fn test_generate_mask_layer() {
-        let mut gpu = GPU::new(TEST_CONFIG, TreeOptions::Disabled).unwrap();
+        let ctx = GPUContext::default(TEST_CONFIG, TreeOptions::Disabled).unwrap();
+        let mut gpu = GPU::new(ctx, TEST_CONFIG).unwrap();
         let l = gpu
             .generate_mask_layer(TEST_REPLICA_ID, TEST_WINDOW_INDEX)
             .unwrap();
@@ -339,7 +336,8 @@ mod tests {
 
     #[test]
     fn test_generate_expander_layer() {
-        let mut gpu = GPU::new(TEST_CONFIG, TreeOptions::Disabled).unwrap();
+        let ctx = GPUContext::default(TEST_CONFIG, TreeOptions::Disabled).unwrap();
+        let mut gpu = GPU::new(ctx, TEST_CONFIG).unwrap();
         gpu.push_layer(&incrementing_layer(123, TEST_CONFIG.num_nodes_window))
             .unwrap();
         let l = gpu
@@ -356,7 +354,8 @@ mod tests {
 
     #[test]
     fn test_generate_butterfly_layer() {
-        let mut gpu = GPU::new(TEST_CONFIG, TreeOptions::Disabled).unwrap();
+        let ctx = GPUContext::default(TEST_CONFIG, TreeOptions::Disabled).unwrap();
+        let mut gpu = GPU::new(ctx, TEST_CONFIG).unwrap();
         gpu.push_layer(&incrementing_layer(345, TEST_CONFIG.num_nodes_window))
             .unwrap();
         let l = gpu
@@ -373,7 +372,8 @@ mod tests {
 
     #[test]
     fn test_combine_layer() {
-        let mut gpu = GPU::new(TEST_CONFIG, TreeOptions::Disabled).unwrap();
+        let ctx = GPUContext::default(TEST_CONFIG, TreeOptions::Disabled).unwrap();
+        let mut gpu = GPU::new(ctx, TEST_CONFIG).unwrap();
         let data = incrementing_layer(567, TEST_CONFIG.num_nodes_window);
         let mask = incrementing_layer(234, TEST_CONFIG.num_nodes_window);
         gpu.push_layer(&mask).unwrap();

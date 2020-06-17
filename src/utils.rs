@@ -22,3 +22,11 @@ pub fn get_devices(platform_name: &str) -> GPUResult<Vec<Device>> {
         None => Err(GPUError::Simple("GPU platform not found!")),
     }
 }
+
+pub fn all_devices() -> GPUResult<Vec<Device>> {
+    get_devices(GPU_NVIDIA_PLATFORM_NAME)
+}
+
+pub fn default_device() -> GPUResult<Device> {
+    Ok(all_devices()?[0])
+}

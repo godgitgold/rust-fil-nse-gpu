@@ -121,7 +121,7 @@ impl Layer {
 }
 
 pub trait NarrowStackedExpander: Sized {
-    fn new(config: Config, tree_options: TreeOptions) -> NSEResult<Self>;
+    fn new(context: GPUContext, config: Config) -> NSEResult<Self>;
     fn generate_mask_layer(
         &mut self,
         replica_id: ReplicaId,
@@ -445,7 +445,9 @@ mod tests {
 
     #[test]
     fn test_sealer() {
-        let mut gpu = GPU::new(TEST_CONFIG, TreeOptions::Enabled { rows_to_discard: 2 }).unwrap();
+        let ctx =
+            GPUContext::default(TEST_CONFIG, TreeOptions::Enabled { rows_to_discard: 2 }).unwrap();
+        let mut gpu = GPU::new(ctx, TEST_CONFIG).unwrap();
         let original_data = incrementing_layer(123, TEST_CONFIG.num_nodes_window);
         let sealer = Sealer::new(
             TEST_CONFIG,
@@ -588,7 +590,8 @@ mod tests {
         let replica_id = ReplicaId::random(&mut rng);
         let window_index: usize = rng.gen();
 
-        let mut gpu = GPU::new(TEST_CONFIG, TreeOptions::Disabled).unwrap();
+        let ctx = GPUContext::default(TEST_CONFIG, TreeOptions::Disabled).unwrap();
+        let mut gpu = GPU::new(ctx, TEST_CONFIG).unwrap();
 
         let sealer = Sealer::new(
             TEST_CONFIG,
