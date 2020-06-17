@@ -120,7 +120,7 @@ fn main() {
     println!("Options: {:?}", opts);
 
     let config: Config = Config::from(opts);
-    let mut gpu = GPU::new(config, opts.build_trees, 2).unwrap();
+    let mut gpu = GPU::new(config, TreeOptions::Enabled { rows_to_discard: 2 }).unwrap();
 
     println!("Mask: {}ms", bench_mask(&mut gpu, opts.samples));
     println!("Expander: {}ms", bench_expander(&mut gpu, opts.samples));
