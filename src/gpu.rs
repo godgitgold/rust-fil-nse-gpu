@@ -1,10 +1,11 @@
 use super::{
-    sources, Config, GPUResult, Layer, NSEResult, NarrowStackedExpander, Node, ReplicaId,
+    sources, utils, Config, GPUResult, Layer, NSEResult, NarrowStackedExpander, Node, ReplicaId,
     COMBINE_BATCH_SIZE,
 };
 use generic_array::typenum::U8;
 use log::info;
 use neptune::batch_hasher::BatcherType;
+use neptune::cl::GPUSelector;
 use neptune::tree_builder::TreeBuilder;
 use ocl::builders::KernelBuilder;
 use ocl::{Buffer, Device, OclPrm, Platform, ProQue};
@@ -76,7 +77,9 @@ impl GPUContext {
             config,
             tree_builder: if tree_builder {
                 Some(TreeBuilder::<U8>::new(
-                    Some(BatcherType::GPU),
+                    Some(BatcherType::CustomGPU(GPUSelector::BusId(
+                        utils::get_bus_id(device)?,
+                    ))),
                     config.num_nodes_window,
                     TREE_BUILDER_BATCH_SIZE,
                     rows_to_discard,
