@@ -71,7 +71,6 @@ fn bench_sealer(gpu: &mut GPU, samples: usize, build_trees: bool) -> u64 {
                 data.clone(),
                 gpu,
                 build_trees,
-                2,
             )
             .unwrap();
             for _ in sealer {}
@@ -121,7 +120,7 @@ fn main() {
     println!("Options: {:?}", opts);
 
     let config: Config = Config::from(opts);
-    let mut gpu = GPU::new(config).unwrap();
+    let mut gpu = GPU::new(config, opts.build_trees, 2).unwrap();
 
     println!("Mask: {}ms", bench_mask(&mut gpu, opts.samples));
     println!("Expander: {}ms", bench_expander(&mut gpu, opts.samples));

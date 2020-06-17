@@ -2,7 +2,10 @@ use super::{
     sources, Config, GPUResult, Layer, NSEResult, NarrowStackedExpander, Node, ReplicaId,
     COMBINE_BATCH_SIZE,
 };
+use generic_array::typenum::U8;
 use log::info;
+use neptune::batch_hasher::BatcherType;
+use neptune::tree_builder::TreeBuilder;
 use ocl::builders::KernelBuilder;
 use ocl::{Buffer, Device, OclPrm, Platform, ProQue};
 
@@ -44,11 +47,17 @@ unsafe impl OclPrm for ReplicaId {}
 // Manages buffers
 struct GPUContext {
     pro_que: ProQue,
+    tree_builder: Option<TreeBuilder<U8>>,
     config: Config,
 }
 
 impl GPUContext {
-    pub fn new(device: Device, config: Config) -> GPUResult<GPUContext> {
+    pub fn new(
+        device: Device,
+        config: Config,
+        tree_builder: bool,
+        rows_to_discard: usize,
+    ) -> NSEResult<GPUContext> {
         info!(
             "Initializing a new NSE GPU context on device: {}",
             device.name()?
@@ -62,7 +71,20 @@ impl GPUContext {
             .dims(config.num_nodes_window)
             .build()?;
 
-        Ok(GPUContext { pro_que, config })
+        Ok(GPUContext {
+            pro_que,
+            config,
+            tree_builder: if tree_builder {
+                Some(TreeBuilder::<U8>::new(
+                    Some(BatcherType::GPU),
+                    config.num_nodes_window,
+                    TREE_BUILDER_BATCH_SIZE,
+                    rows_to_discard,
+                )?)
+            } else {
+                None
+            },
+        })
     }
 
     pub(crate) fn build_kernel(&mut self, kernel_name: &str) -> KernelBuilder {
@@ -95,6 +117,8 @@ macro_rules! call_kernel {
     }};
 }
 
+const TREE_BUILDER_BATCH_SIZE: usize = 400_000;
+
 pub struct GPU {
     context: GPUContext,
     combine_batch_size: usize,
@@ -103,6 +127,10 @@ pub struct GPU {
 }
 
 impl GPU {
+    pub fn tree_builder(&mut self) -> &mut Option<TreeBuilder<U8>> {
+        &mut self.context.tree_builder
+    }
+
     fn replace_buffer(&mut self, buff: Buffer<Node>) {
         std::mem::replace(&mut self.current_layer, buff);
     }
@@ -123,13 +151,13 @@ impl GPU {
 }
 
 impl NarrowStackedExpander for GPU {
-    fn new(config: Config) -> NSEResult<Self> {
+    fn new(config: Config, tree_builder: bool, rows_to_discard: usize) -> NSEResult<Self> {
         // Choose first NVIDIA GPU
         let device = *get_devices(GPU_NVIDIA_PLATFORM_NAME)?
             .first()
             .expect("GPU not found!");
 
-        let mut context = GPUContext::new(device, config)?;
+        let mut context = GPUContext::new(device, config, tree_builder, rows_to_discard)?;
         let current_layer = context.create_buffer()?;
 
         Ok(GPU {
@@ -293,7 +321,7 @@ mod tests {
 
     #[test]
     fn test_generate_mask_layer() {
-        let mut gpu = GPU::new(TEST_CONFIG).unwrap();
+        let mut gpu = GPU::new(TEST_CONFIG, false, 0).unwrap();
         let l = gpu
             .generate_mask_layer(TEST_REPLICA_ID, TEST_WINDOW_INDEX)
             .unwrap();
@@ -308,7 +336,7 @@ mod tests {
 
     #[test]
     fn test_generate_expander_layer() {
-        let mut gpu = GPU::new(TEST_CONFIG).unwrap();
+        let mut gpu = GPU::new(TEST_CONFIG, false, 0).unwrap();
         gpu.push_layer(&incrementing_layer(123, TEST_CONFIG.num_nodes_window))
             .unwrap();
         let l = gpu
@@ -325,7 +353,7 @@ mod tests {
 
     #[test]
     fn test_generate_butterfly_layer() {
-        let mut gpu = GPU::new(TEST_CONFIG).unwrap();
+        let mut gpu = GPU::new(TEST_CONFIG, false, 0).unwrap();
         gpu.push_layer(&incrementing_layer(345, TEST_CONFIG.num_nodes_window))
             .unwrap();
         let l = gpu
@@ -342,7 +370,7 @@ mod tests {
 
     #[test]
     fn test_combine_layer() {
-        let mut gpu = GPU::new(TEST_CONFIG).unwrap();
+        let mut gpu = GPU::new(TEST_CONFIG, false, 0).unwrap();
         let data = incrementing_layer(567, TEST_CONFIG.num_nodes_window);
         let mask = incrementing_layer(234, TEST_CONFIG.num_nodes_window);
         gpu.push_layer(&mask).unwrap();

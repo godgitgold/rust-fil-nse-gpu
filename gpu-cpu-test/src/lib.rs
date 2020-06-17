@@ -51,7 +51,7 @@ mod tests {
     #[test]
     fn test_expander_compatibility() {
         let mut rng = thread_rng();
-        let mut gpu = GPU::new(TEST_CONFIG).unwrap();
+        let mut gpu = GPU::new(TEST_CONFIG, false, 0).unwrap();
 
         for _ in 0..10 {
             let prev_layer = Layer::random(&mut rng, TEST_CONFIG.num_nodes_window);
@@ -84,7 +84,7 @@ mod tests {
     #[test]
     fn test_butterfly_compatibility() {
         let mut rng = thread_rng();
-        let mut gpu = GPU::new(TEST_CONFIG).unwrap();
+        let mut gpu = GPU::new(TEST_CONFIG, false, 0).unwrap();
 
         for _ in 0..10 {
             let prev_layer = Layer::random(&mut rng, TEST_CONFIG.num_nodes_window);
@@ -117,7 +117,7 @@ mod tests {
     #[test]
     fn test_sealer_compatibility() {
         let mut rng = thread_rng();
-        let mut gpu = GPU::new(TEST_CONFIG).unwrap();
+        let mut gpu = GPU::new(TEST_CONFIG, true, 2).unwrap();
 
         for _ in 0..10 {
             let data = Layer::random(&mut rng, TEST_CONFIG.num_nodes_window);
@@ -130,7 +130,6 @@ mod tests {
                 data.clone(),
                 &mut gpu,
                 true,
-                2,
             )
             .unwrap();
 
